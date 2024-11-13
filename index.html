@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather API App</title>
+    <style>
+        /* Global Styles */
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            transition: background-color 0.3s, color 0.3s;
+            background-color: #f0f4f8; /* Light background */
+            color: #333; /* Dark text color for light mode */
+        }
+
+        /* Container Styling */
+        .container {
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+            transition: background-color 0.3s;
+        }
+
+        h1 {
+            margin-bottom: 1.5rem;
+            color: #2c3e50;
+            font-size: 1.8rem;
+        }
+
+        input, button {
+            width: 100%;
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        input {
+            border: 2px solid #e0e0e0;
+            box-sizing: border-box;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #6B8CEF;
+        }
+
+        button {
+            border: none;
+            background-color: #6B8CEF;
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        button:hover {
+            background-color: #5A7BE0;
+        }
+
+        /* Weather Card */
+        #weather-display {
+            margin-top: 1.5rem;
+        }
+
+        .weather-card {
+            background-color: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-top: 1rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .weather-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .temperature {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .condition {
+            text-transform: capitalize;
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+            color: #666;
+        }
+
+        .details {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-top: 1rem;
+            text-align: left;
+        }
+
+        .detail-item {
+            padding: 0.5rem;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .detail-label {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 0.25rem;
+        }
+
+        .detail-value {
+            font-size: 1.1rem;
+            color: #2c3e50;
+            font-weight: 600;
+        }
+
+        /* Error Handling */
+        .error {
+            color: #e74c3c;
+            padding: 1rem;
+            background-color: #fdf0f0;
+            border-radius: 8px;
+        }
+
+        .loading {
+            color: #666;
+            font-style: italic;
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 2s linear infinite;
+            margin: auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Toggle Button for Dark Mode */
+        .dark-mode-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background-color: #6B8CEF;
+            border: none;
+            color: white;
+            padding: 0.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .dark-mode-toggle:hover {
+            background-color: #5A7BE0;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Weather Forecast</h1>
+        <div class="api-key-container">
+            <input type="text" id="api-key-input" placeholder="Enter your WeatherAPI.com API key" aria-label="Enter your WeatherAPI.com API key">
+            <button id="save-api-key" onclick="saveApiKey()">Save API Key</button>
+        </div>
+        <input type="text" id="location-input" placeholder="Enter city name" aria-label="Enter city name">
+        <button onclick="fetchWeather()">Get Weather</button>
+        <button onclick="fetchHourlyWeather()">Get Hourly Weather</button>
+        <button onclick="fetchForecast()">Get 5-Day Forecast</button>
+        <div id="weather-display"></div>
+    </div>
+
+    <button class="dark-mode-toggle" onclick="toggleDarkMode()">🌙 Dark Mode</button>
+
+    <script>
+        const apiKeyInput = document.getElementById('api-key-input')
+        const locationInput = document.getElementById('location-input')
+        const weatherDisplay = document.getElementById('weather-display')
+        const darkModeToggle = document.querySelector('.dark-mode-toggle')
+
+        let isDarkMode = false
+
+        window.onload = () => {
+            const savedApiKey = localStorage.getItem('weatherApiKey')
+            if (savedApiKey !== null) {
+                apiKeyInput.value = savedApiKey
+            }
+            
+            if (localStorage.getItem('darkMode') === 'true') {
+                toggleDarkMode(true);
+            }
+        }
+
+        function saveApiKey() {
+            const apiKey = apiKeyInput.value.trim()
+            if (apiKey === '') {
+                alert('Please enter a valid API key')
+                return
+            }
+            localStorage.setItem('weatherApiKey', apiKey)
+            alert('API Key was saved to local storage')
+        }
+
+        locationInput.addEventListener('keyup', (event) => {
+            if (event.key === 'Enter') {
+                fetchWeather()
+            }
+        })
+
+        
+        async function fetchWeather() {
+            const apiKey = apiKeyInput.value.trim()
+            const location = locationInput.value.trim()
+
+            if (apiKey === '') {
+                weatherDisplay.innerHTML = '<p class="error">Please enter your WeatherAPI.com API key.</p>'
+                return
+            }
+
+            if (location === '') {
+                weatherDisplay.innerHTML = '<p class="error">Please enter a city name.</p>'
+                return
+            }
+
+            weatherDisplay.innerHTML = '<div class="spinner"></div>'
+
+            const apiUrl = `https://api.weatherapi.com/v1/current.json?key=${apiKey}&q=${encodeURIComponent(location)}&aqi=yes`
+
+            try {
+                const response = await fetch(apiUrl)
+                const data = await response.json()
+
+                if (data.error) {
+                    weatherDisplay.innerHTML = `
+                        <p class="error">${data.error.message || 'Failed to fetch weather data'}</p>
+                    `
+                    return
+                }
+
+                const weatherCard = `
+                    <div class="weather-card">
+                        <div class="temperature">${data.current.temp_c}°C</div>
+                        <div class="condition">${data.current.condition.text}</div>
+                        <div class="details">
+                            <div class="detail-item">
+                                <div class="detail-label">Humidity</div>
+                                <div class="detail-value">${data.current.humidity}%</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-label">Wind</div>
+                                <div class="detail-value">${data.current.wind_kph} km/h</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-label">Feels Like</div>
+                                <div class="detail-value">${data.current.feelslike_c}°C</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-label">Air Quality</div>
+                                <div class="detail-value">${data.current.air_quality.pm10}</div>
+                            </div>
+                        </div>
+                    </div>
+                `
+                weatherDisplay.innerHTML = weatherCard
+            } catch (error) {
+                weatherDisplay.innerHTML = '<p class="error">Failed to fetch weather data. Please try again later.</p>'
+            }
+        }
+
+        
+        async function fetchHourlyWeather() {
+            const apiKey = apiKeyInput.value.trim()
+            const location = locationInput.value.trim()
+
+            if (apiKey === '') {
+                weatherDisplay.innerHTML = '<p class="error">Please enter your WeatherAPI.com API key.</p>'
+                return
+            }
+
+            if (location === '') {
+                weatherDisplay.innerHTML = '<p class="error">Please enter a city name.</p>'
+                return
+            }
+
+            weatherDisplay.innerHTML = '<div class="spinner"></div>'
+
+            const apiUrl = `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${encodeURIComponent(location)}&hours=24`
+
+            try {
+                const response = await fetch(apiUrl)
+                const data = await response.json()
+
+                if (data.error) {
+                    weatherDisplay.innerHTML = `
+                        <p class="error">${data.error.message || 'Failed to fetch weather data'}</p>
+                    `
+                    return
+                }
+
+                let hourlyForecast = '<h3>Hourly Forecast:</h3>'
+                data.forecast.forecastday[0].hour.forEach(hour => {
+                    hourlyForecast += `
+                        <div class="detail-item">
+                            <div class="detail-label">${new Date(hour.time).toLocaleTimeString()}</div>
+                            <div class="detail-value">${hour.temp_c}°C - ${hour.condition.text}</div>
+                        </div>
+                    `
+                })
+
+                weatherDisplay.innerHTML = hourlyForecast
+            } catch (error) {
+                weatherDisplay.innerHTML = '<p class="error">Failed to fetch hourly data. Please try again later.</p>'
+            }
+        }
+
+       
+        async function fetchForecast() {
+            const apiKey = apiKeyInput.value.trim()
+            const location = locationInput.value.trim()
+
+            if (apiKey === '') {
+                weatherDisplay.innerHTML = '<p class="error">Please enter your WeatherAPI.com API key.</p>'
+                return
+            }
+
+            if (location === '') {
+                weatherDisplay.innerHTML = '<p class="error">Please enter a city name.</p>'
+                return
+            }
+
+            weatherDisplay.innerHTML = '<div class="spinner"></div>'
+
+            const apiUrl = `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${encodeURIComponent(location)}&days=5`
+
+            try {
+                const response = await fetch(apiUrl)
+                const data = await response.json()
+
+                if (data.error) {
+                    weatherDisplay.innerHTML = `
+                        <p class="error">${data.error.message || 'Failed to fetch weather data'}</p>
+                    `
+                    return
+                }
+
+                let forecast = '<h3>5-Day Forecast:</h3>'
+                data.forecast.forecastday.forEach(day => {
+                    forecast += `
+                        <div class="weather-card">
+                            <div class="temperature">${day.date}</div>
+                            <div class="condition">${day.day.condition.text}</div>
+                            <div class="details">
+                                <div class="detail-item">
+                                    <div class="detail-label">Max Temp</div>
+                                    <div class="detail-value">${day.day.maxtemp_c}°C</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">Min Temp</div>
+                                    <div class="detail-value">${day.day.mintemp_c}°C</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">Humidity</div>
+                                    <div class="detail-value">${day.day.avghumidity}%</div>
+                                </div>
+                            </div>
+                        </div>
+                    `
+                })
+
+                weatherDisplay.innerHTML = forecast
+            } catch (error) {
+                weatherDisplay.innerHTML = '<p class="error">Failed to fetch 5-day forecast. Please try again later.</p>'
+            }
+        }
+
+        function toggleDarkMode(save = false) {
+            isDarkMode = !isDarkMode;
+            if (isDarkMode) {
+                document.body.style.backgroundColor = "#181818"
+                document.body.style.color = "#fff"
+                darkModeToggle.innerText = "🌕 Light Mode"
+                if (save) {
+                    localStorage.setItem('darkMode', 'true')
+                }
+            } else {
+                document.body.style.backgroundColor = "#f0f4f8"
+                document.body.style.color = "#333"
+                darkModeToggle.innerText = "🌙 Dark Mode"
+                if (save) {
+                    localStorage.setItem('darkMode', 'false')
+                }
+            }
+        }
+    </script>
+</body>
+</html>
